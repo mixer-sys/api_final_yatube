@@ -5,7 +5,9 @@ from rest_framework.response import Response
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework import status
 from rest_framework import filters
-from posts.models import Post, Comment, Follow, Group
+from django_filters.rest_framework import DjangoFilterBackend
+from django.shortcuts import get_object_or_404
+from posts.models import Post, Group, User
 from api.serializers import PostSerializer, CommentSerializer
 from api.serializers import FollowSerializer, GroupSerializer
 from api.permissions import OwnerOrReadOnly
@@ -16,6 +18,8 @@ class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     pagination_class = LimitOffsetPagination
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ('author', 'group')
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -23,11 +27,11 @@ class PostViewSet(viewsets.ModelViewSet):
 
 class CommentViewSet(viewsets.ModelViewSet):
     permission_classes = (OwnerOrReadOnly, IsAuthenticatedOrReadOnly)
-    queryset = Comment.objects.all()
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        return Comment.objects.filter(post_id=self.kwargs.get('post_id'))
+        post = get_object_or_404(Post, id=self.kwargs.get('post_id'))
+        return post.comments.all()
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user,
@@ -36,14 +40,13 @@ class CommentViewSet(viewsets.ModelViewSet):
 
 class FollowViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
-    queryset = Follow.objects.all()
     serializer_class = FollowSerializer
-
     filter_backends = (filters.SearchFilter,)
     search_fields = ('following__username',)
 
     def get_queryset(self):
-        return Follow.objects.filter(user=self.request.user)
+        user = get_object_or_404(User, username=self.request.user)
+        return user.user.all()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
